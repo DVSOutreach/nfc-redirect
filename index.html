@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Redirecting...</title>
+    <script>
+      const redirectUrl = "https://caplanc.org/access-resources/safety-empowerment/domestic-violence-services/";
+      const flowUrl = "https://prod-111.westus.logic.azure.com:443/workflows/9bcd0e64bcfe47b182626f09806cb9b0/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=1BnyLXB9rdhoopl8aIQjhKE0y3WmB6PjvlPHty8MqwU";
+
+      (async function () {
+        const urlParams = new URLSearchParams(window.location.search);
+        const data = {
+          Tagname: urlParams.get("Tagname") || "",
+          CurrentTime: urlParams.get("CurrentTime") || new Date().toISOString(),
+          Department: urlParams.get("Department") || "",
+          Location: urlParams.get("Location") || "",
+        };
+
+        try {
+          await fetch(flowUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(data)
+          });
+        } catch (error) {
+          console.error("Error sending data to Power Automate:", error);
+        }
+
+        // Redirect no matter what (even if the request fails)
+        window.location.href = redirectUrl;
+      })();
+    </script>
+  </head>
+  <body>
+    Redirecting...
+  </body>
+</html>
