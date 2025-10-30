@@ -5,10 +5,19 @@
     <title>Redirecting...</title>
     <script>
       const redirectUrl = "https://caplanc.org/access-resources/safety-empowerment/domestic-violence-services/";
-      const flowUrl = "https://prod-111.westus.logic.azure.com:443/workflows/9bcd0e64bcfe47b182626f09806cb9b0/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=1BnyLXB9rdhoopl8aIQjhKE0y3WmB6PjvlPHty8MqwU";
+
+      // NEW (primary) endpoint
+      const newFlowUrl = "https://default1155ce382a364ffaad4da283064efb.68.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/9bcd0e64bcfe47b182626f09806cb9b0/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=dsDZvg20sa-nyx0f571DfnXfEXlMkM6_he0cqU2aUCk";
+
+      // OLD (legacy) endpoint – valid until Nov 30, 2025
+      const oldFlowUrl = "https://prod-111.westus.logic.azure.com:443/workflows/9bcd0e64bcfe47b182626f09806cb9b0/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=1BnyLXB9rdhoopl8aIQjhKE0y3WmB6PjvlPHty8MqwU";
+
+      // Cutoff at 11:59:59 PM ET on Nov 30, 2025
+      const cutoff = new Date("2025-11-30T23:59:59-05:00");
 
       (async function () {
         const urlParams = new URLSearchParams(window.location.search);
+
         const data = {
           Tagname: urlParams.get("Tagname") || "",
           CurrentTime: urlParams.get("CurrentTime") || new Date().toISOString(),
@@ -16,20 +25,28 @@
           Location: urlParams.get("Location") || "",
         };
 
-        try {
-          await fetch(flowUrl, {
+        const post = (url) =>
+          fetch(url, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data)
           });
-        } catch (error) {
-          console.error("Error sending data to Power Automate:", error);
-        }
 
-        // Redirect no matter what (even if the request fails)
-        window.location.href = redirectUrl;
+        try {
+          // 1) Try NEW endpoint first
+          await post(newFlowUrl);
+
+          // 2) While before cutoff, also send to OLD (fire-and-forget)
+          if (new Date() <= cutoff) post(oldFlowUrl).catch(() => {});
+        } catch (err) {
+          // If NEW failed and we're before cutoff, try OLD once
+          if (new Date() <= cutoff) {
+            try { await post(oldFlowUrl); } catch (e) { /* ignore */ }
+          }
+        } finally {
+          // Redirect regardless of outcome
+          window.location.href = redirectUrl;
+        }
       })();
     </script>
   </head>
