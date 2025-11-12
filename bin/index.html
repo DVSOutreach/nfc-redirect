@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8">
+<script>
+  // Power Apps PLAY base (your link, trimmed to tenantId only)
+  const base = "https://apps.powerapps.com/play/e/default-1155ce38-2a36-4ffa-ad4d-a283064efb68/a/16521173-a066-4b39-ba98-c528d19a6b6b?tenantId=1155ce38-2a36-4ffa-ad4d-a283064efb68";
+
+  const p = new URLSearchParams(location.search);
+  const bin = (p.get("bin") || "").trim();
+  const c   = (p.get("c")   || "").trim();
+
+  const dest = c
+    ? `${base}&c=${encodeURIComponent(c)}&m=edit`
+    : `${base}&bin=${encodeURIComponent(bin)}&m=edit`;
+
+  if (!bin && !c) {
+    document.write("Missing bin or code. Use ?bin=CD1 or ?c=ABC123");
+  } else {
+    location.replace(dest);
+  }
+</script>
