@@ -1,0 +1,23 @@
+<!doctype html><meta charset="utf-8">
+<script>
+  // ---- CONFIG: same Power Apps base as in bin/index.html ----
+  const base = "https://apps.powerapps.com/play/e/default-1155ce38-2a36-4ffa-ad4d-a283064efb68/a/16521173-a066-4b39-ba98-c528d19a6b6b?tenantId=1155ce38-2a36-4ffa-ad4d-a283064efb68";
+
+  // Project site path includes "/nfc-redirect/". Strip it so parts start after the repo name.
+  const path = location.pathname.replace(/^\/nfc-redirect\//, "/"); // adjust if your repo name differs
+  const parts = path.split("/").filter(Boolean); // e.g., ["bin","CD1"] or ["ref","ABC123"]
+
+  let dest = null;
+
+  // Inventory: /bin/CD1  (you can add referral rules here too if needed)
+  if (parts[0] === "bin" && parts[1]) {
+    const code = parts[1];
+    dest = `${base}&bin=${encodeURIComponent(code)}&m=edit`;
+  }
+
+  if (dest) {
+    location.replace(dest);
+  } else {
+    document.write("Try /nfc-redirect/bin/CD1 or use /bin/?bin=CD1");
+  }
+</script>
