@@ -4,16 +4,16 @@
 
 <script>
   // =========================================================
-  // OUTREACH INVENTORY BIN REDIRECT + SCAN LOG POST
+  // OUTREACH INVENTORY BIN REDIRECT + SCAN LOG POST (CAP v.3)
   // =========================================================
 
   // Power Apps PLAY base (unchanged)
   const base =
     "https://apps.powerapps.com/play/e/default-1155ce38-2a36-4ffa-ad4d-a283064efb68/a/16521173-a066-4b39-ba98-c528d19a6b6b?tenantId=1155ce38-2a36-4ffa-ad4d-a283064efb68";
 
-  // NEW Power Automate endpoint (use EXACTLY what Power Automate gives you)
+  // CAP environment: Referral Log Flow V.3 (use the full URL exactly as provided by Power Automate)
   const flowUrl =
-    "https://38c0ffbc5b67e3c9bab1502225ae2b.04.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/b21b57c64bbf446289b1d2a5a9685771/triggers/manual/paths/invoke?api-version=1";
+    "https://default1155ce382a364ffaad4da283064efb.68.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/89285acbed1a4b878841eb1c13414230/triggers/manual/paths/invoke?api-version=1";
 
   const p = new URLSearchParams(location.search);
 
@@ -40,7 +40,7 @@
   const Location = getParam(["Location", "location", "loc"], "");
   const CurrentTime = getParam(["CurrentTime", "currentTime", "time"], nowUtcIso());
 
-  // Your renamed fields (Initials / InitialsCapturedUTC), but still accepts legacy names
+  // Your renamed fields (Initials / InitialsCapturedUTC) + legacy compatibility
   const Initials = getParam(
     ["Initials", "initials", "ProviderInitials", "providerInitials"],
     ""
@@ -58,7 +58,7 @@
     dest += `&bin=${encodeURIComponent(bin)}`;
   }
 
-  // OPTIONAL: pass through expanded params to Power Apps too (won't break the app; useful if you ever read Param() values)
+  // OPTIONAL: pass through expanded params to Power Apps too (won't break the app)
   function addToDest(key, val) {
     if (val) dest += `&${encodeURIComponent(key)}=${encodeURIComponent(val)}`;
   }
