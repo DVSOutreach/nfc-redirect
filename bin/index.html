@@ -2,107 +2,186 @@
 <meta charset="utf-8">
 <title>Redirecting...</title>
 
+<style>
+  body { font-family: Arial, sans-serif; margin: 0; }
+  #status { padding: 18px; }
+
+  #gate {
+    position: fixed; inset: 0; display: none;
+    background: rgba(0,0,0,0.65);
+    align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  #card {
+    background: #fff; border-radius: 12px; padding: 20px; max-width: 420px; width: 100%;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  }
+  #card h2 { margin: 0 0 10px 0; font-size: 18px; }
+  #card p { margin: 0 0 12px 0; color: #333; }
+  #initialsInput {
+    width: 100%; padding: 12px; font-size: 18px;
+    border: 1px solid #ccc; border-radius: 8px;
+    text-transform: uppercase;
+  }
+  #btnRow { margin-top: 12px; display: flex; gap: 10px; }
+  button {
+    padding: 10px 14px; border-radius: 8px; border: 0; cursor: pointer;
+    font-size: 14px;
+  }
+  #continueBtn { background: #1a73e8; color: #fff; flex: 1; }
+  #skipBtn { background: #e0e0e0; color: #111; }
+  #err { margin-top: 10px; color: #b00020; min-height: 18px; }
+</style>
+
+<div id="status">Redirecting...</div>
+
+<div id="gate">
+  <div id="card">
+    <h2>Enter your initials</h2>
+    <p>Type 2–4 letters (example: AA). This will be recorded with the scan.</p>
+
+    <input id="initialsInput" maxlength="4" autocomplete="off" inputmode="text" />
+
+    <div id="btnRow">
+      <button id="continueBtn">Continue</button>
+      <button id="skipBtn" title="Continue without initials">Skip</button>
+    </div>
+
+    <div id="err"></div>
+  </div>
+</div>
+
 <script>
   // Power Apps PLAY base (unchanged)
   const base =
     "https://apps.powerapps.com/play/e/default-1155ce38-2a36-4ffa-ad4d-a283064efb68/a/16521173-a066-4b39-ba98-c528d19a6b6b?tenantId=1155ce38-2a36-4ffa-ad4d-a283064efb68";
 
-  // CAP v.3 (signed)
+  // CAP v.3 signed URL (anyone can trigger)
   const flowUrl =
     "https://default1155ce382a364ffaad4da283064efb.68.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/89285acbed1a4b878841eb1c13414230/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=BrJvpHWGnE3h3_nLagPxuxcI4uKCL_Q_VkRaI9XaAIE";
 
+  const MAX_WAIT_MS = 2500;
+
   const url = new URL(window.location.href);
-  const p = url.searchParams;
+  const sp = url.searchParams;
 
-  const bin = (p.get("bin") || "").trim();
-  const c   = (p.get("c")   || "").trim();
+  const bin = (sp.get("bin") || "").trim();
+  const c   = (sp.get("c")   || "").trim();
 
-  function nowUtcIso() {
-    return new Date().toISOString();
-  }
+  function nowUtcIso() { return new Date().toISOString(); }
 
   function getParam(keys, fallback = "") {
     for (const k of keys) {
-      const v = p.get(k);
+      const v = sp.get(k);
       if (v !== null && v !== "") return v;
     }
     return fallback;
   }
 
-  const Tagname = getParam(["Tagname", "tagname", "tag"], "");
-  const Department = getParam(["Department", "department", "dept"], "");
-  const Location = getParam(["Location", "location", "loc"], "");
-  const CurrentTime = getParam(["CurrentTime", "currentTime", "time"], nowUtcIso());
-
-  let Initials = getParam(
-    ["Initials", "initials", "ProviderInitials", "providerInitials"],
-    ""
-  );
-
-  let InitialsCapturedUTC = getParam(
-    ["InitialsCapturedUTC", "initialsCapturedUTC", "ProviderInitialsCapturedUTC"],
-    ""
-  );
-
-  // PROMPT if missing initials
-  if (!Initials) {
-    while (true) {
-      const entered = window.prompt("Enter your initials (2–4 letters):", "");
-      if (entered === null) break;
-
-      const cleaned = entered.trim().toUpperCase();
-      if (/^[A-Z]{2,4}$/.test(cleaned)) {
-        Initials = cleaned;
-        InitialsCapturedUTC = nowUtcIso();
-        break;
-      }
-
-      alert("Please enter 2–4 letters only (example: AA).");
-    }
+  function normalizeInitials(raw) {
+    const cleaned = (raw || "").trim().toUpperCase();
+    return /^[A-Z]{2,4}$/.test(cleaned) ? cleaned : "";
   }
 
-  if (Initials && !InitialsCapturedUTC) {
-    InitialsCapturedUTC = nowUtcIso();
+  async function postJson(endpointUrl, data) {
+    return fetch(endpointUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+      keepalive: true
+    });
   }
 
-  // Write back into URL so PageUrl contains initials
-  if (Initials) p.set("Initials", Initials);
-  if (InitialsCapturedUTC) p.set("InitialsCapturedUTC", InitialsCapturedUTC);
-  window.history.replaceState(null, "", url.toString());
+  function buildDest() {
+    let dest = `${base}&m=edit`;
+    if (c) dest += `&c=${encodeURIComponent(c)}`;
+    else dest += `&bin=${encodeURIComponent(bin)}`;
 
-  // Original destination logic
-  const dest = c
-    ? `${base}&c=${encodeURIComponent(c)}&m=edit`
-    : `${base}&bin=${encodeURIComponent(bin)}&m=edit`;
+    // Pass through params to app (safe)
+    const pass = (k, v) => { if (v) dest += `&${encodeURIComponent(k)}=${encodeURIComponent(v)}`; };
+    pass("Tagname", getParam(["Tagname","tagname","tag"], ""));
+    pass("Department", getParam(["Department","department","dept"], ""));
+    pass("Location", getParam(["Location","location","loc"], ""));
+    pass("CurrentTime", getParam(["CurrentTime","currentTime","time"], ""));
+    pass("Initials", getParam(["Initials","initials"], ""));
+    pass("InitialsCapturedUTC", getParam(["InitialsCapturedUTC","initialsCapturedUTC"], ""));
+    return dest;
+  }
 
-  if (!bin && !c) {
-    document.write("Missing bin or code. Use ?bin=CD1 or ?c=ABC123");
-  } else {
+  async function proceed(initials, initialsCapturedUtc) {
+    const Tagname = getParam(["Tagname","tagname","tag"], "");
+    const Department = getParam(["Department","department","dept"], "");
+    const Location = getParam(["Location","location","loc"], "");
+    const CurrentTime = getParam(["CurrentTime","currentTime","time"], nowUtcIso());
+
+    if (initials) sp.set("Initials", initials);
+    if (initialsCapturedUtc) sp.set("InitialsCapturedUTC", initialsCapturedUtc);
+    history.replaceState(null, "", url.toString());
+
     const payload = {
       Bin: bin,
       Code: c,
-      Tagname: Tagname,
-      CurrentTime: CurrentTime,
-      Department: Department,
-      Location: Location,
-      Initials: Initials,
-      InitialsCapturedUTC: InitialsCapturedUTC,
-      PageUrl: url.toString()
+      Tagname,
+      CurrentTime,
+      Department,
+      Location,
+      Initials: initials || "",
+      InitialsCapturedUTC: initialsCapturedUtc || "",
+      PageUrl: url.toString(),
+      Path: window.location.pathname,
+      UserAgent: navigator.userAgent
     };
 
-    try {
-      fetch(flowUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        keepalive: true
-      }).catch(() => {});
-    } catch (e) {}
+    const timeout = new Promise((resolve) => setTimeout(resolve, MAX_WAIT_MS));
 
-    setTimeout(() => location.replace(dest), 300);
+    try { await Promise.race([postJson(flowUrl, payload), timeout]); } catch (e) {}
+
+    // redirect into Power Apps
+    location.replace(buildDest());
   }
+
+  (function start() {
+    if (!bin && !c) {
+      document.write("Missing bin or code. Use ?bin=CD1 or ?c=ABC123");
+      return;
+    }
+
+    let initials = normalizeInitials(getParam(["Initials","initials","ProviderInitials","providerInitials"], ""));
+    let initialsCapturedUtc = getParam(["InitialsCapturedUTC","initialsCapturedUTC","ProviderInitialsCapturedUTC"], "");
+    if (initials && !initialsCapturedUtc) initialsCapturedUtc = nowUtcIso();
+
+    if (!initials) {
+      const gate = document.getElementById("gate");
+      const input = document.getElementById("initialsInput");
+      const err = document.getElementById("err");
+      const continueBtn = document.getElementById("continueBtn");
+      const skipBtn = document.getElementById("skipBtn");
+
+      gate.style.display = "flex";
+      input.focus();
+
+      continueBtn.onclick = () => {
+        const picked = normalizeInitials(input.value);
+        if (!picked) {
+          err.textContent = "Please enter 2–4 letters only (example: AA).";
+          return;
+        }
+        gate.style.display = "none";
+        proceed(picked, nowUtcIso());
+      };
+
+      skipBtn.onclick = () => {
+        gate.style.display = "none";
+        proceed("", "");
+      };
+
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") continueBtn.click();
+      });
+
+      return;
+    }
+
+    proceed(initials, initialsCapturedUtc);
+  })();
 </script>
-
-Redirecting...
-
-Redirecting...
