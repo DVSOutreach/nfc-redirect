@@ -3,121 +3,200 @@
   <head>
     <meta charset="UTF-8" />
     <title>Redirecting...</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; }
+      #status { padding: 18px; }
+
+      #gate {
+        position: fixed; inset: 0; display: none;
+        background: rgba(0,0,0,0.65);
+        align-items: center; justify-content: center;
+        padding: 16px;
+      }
+      #card {
+        background: #fff; border-radius: 12px; padding: 20px; max-width: 420px; width: 100%;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      }
+      #card h2 { margin: 0 0 10px 0; font-size: 18px; }
+      #card p { margin: 0 0 12px 0; color: #333; }
+      #initialsInput {
+        width: 100%; padding: 12px; font-size: 18px;
+        border: 1px solid #ccc; border-radius: 8px;
+        text-transform: uppercase;
+      }
+      #btnRow { margin-top: 12px; display: flex; gap: 10px; }
+      button {
+        padding: 10px 14px; border-radius: 8px; border: 0; cursor: pointer;
+        font-size: 14px;
+      }
+      #continueBtn { background: #1a73e8; color: #fff; flex: 1; }
+      #skipBtn { background: #e0e0e0; color: #111; }
+      #err { margin-top: 10px; color: #b00020; min-height: 18px; }
+    </style>
+  </head>
+
+  <body>
+    <div id="status">Redirecting...</div>
+
+    <!-- Initials Gate (on-page prompt) -->
+    <div id="gate">
+      <div id="card">
+        <h2>Enter your initials</h2>
+        <p>Type 2–4 letters (example: AA). This will be recorded with the scan.</p>
+
+        <input id="initialsInput" maxlength="4" autocomplete="off" inputmode="text" />
+
+        <div id="btnRow">
+          <button id="continueBtn">Continue</button>
+          <button id="skipBtn" title="Continue without initials">Skip</button>
+        </div>
+
+        <div id="err"></div>
+      </div>
+    </div>
+
     <script>
+      // =========================================================
+      // CONFIG
+      // =========================================================
+
       // Where the user ends up no matter what
       const redirectUrl =
         "https://caplanc.org/access-resources/safety-empowerment/domestic-violence-services/";
 
-      // PRIMARY endpoint (older flow that most tags are already pointing to)
-      const primaryFlowUrl =
-        "https://default1155ce382a364ffaad4da283064efb.68.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/9bcd0e64bcfe47b182626f09806cb9b0/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=dsDZvg20sa-nyx0f571DfnXfEXlMkM6_he0cqU2aUCk";
-
-      // EXPANDED endpoint (CAP v.3 - SIGNED "anyone can trigger" URL)
-      const expandedFlowUrl =
+      // v.3 (CAP) signed URL (anyone can trigger)
+      const v3FlowUrl =
         "https://default1155ce382a364ffaad4da283064efb.68.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/89285acbed1a4b878841eb1c13414230/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=BrJvpHWGnE3h3_nLagPxuxcI4uKCL_Q_VkRaI9XaAIE";
 
-      // Give the POSTs time to finish
-      const MAX_WAIT_MS = 2000;
+      // OPTIONAL fallback (old flow) — only used if v.3 fails
+      const fallbackFlowUrl =
+        "https://default1155ce382a364ffaad4da283064efb.68.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/9bcd0e64bcfe47b182626f09806cb9b0/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=dsDZvg20sa-nyx0f571DfnXfEXlMkM6_he0cqU2aUCk";
 
-      (function () {
-        const url = new URL(window.location.href);
-        const sp = url.searchParams;
+      // Wait time for the POST to finish before redirecting
+      const MAX_WAIT_MS = 2500;
 
-        function nowUtcIso() {
-          return new Date().toISOString();
+      // =========================================================
+      // HELPERS
+      // =========================================================
+      const url = new URL(window.location.href);
+      const sp = url.searchParams;
+
+      function nowUtcIso() { return new Date().toISOString(); }
+
+      function getParam(keys, fallback = "") {
+        for (const k of keys) {
+          const v = sp.get(k);
+          if (v !== null && v !== "") return v;
         }
+        return fallback;
+      }
 
-        function getParam(keys, fallback = "") {
-          for (const k of keys) {
-            const v = sp.get(k);
-            if (v !== null && v !== "") return v;
-          }
-          return fallback;
-        }
+      function normalizeInitials(raw) {
+        const cleaned = (raw || "").trim().toUpperCase();
+        return /^[A-Z]{2,4}$/.test(cleaned) ? cleaned : "";
+      }
 
-        // Core fields (legacy)
+      async function postJson(endpointUrl, data) {
+        return fetch(endpointUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+          keepalive: true
+        });
+      }
+
+      // =========================================================
+      // MAIN
+      // =========================================================
+      async function proceed(initials, initialsCapturedUtc) {
+        // Core fields
         const Tagname = getParam(["Tagname", "tagname", "tag"], "");
         const CurrentTime = getParam(["CurrentTime", "currentTime", "time"], nowUtcIso());
         const Department = getParam(["Department", "department", "dept"], "");
         const Location = getParam(["Location", "location", "loc"], "");
 
-        // Initials (read from URL first)
-        let Initials = getParam(
-          ["Initials", "initials", "ProviderInitials", "providerInitials"],
-          ""
-        );
+        // Write initials into URL so PageUrl stored in SharePoint includes them
+        if (initials) sp.set("Initials", initials);
+        if (initialsCapturedUtc) sp.set("InitialsCapturedUTC", initialsCapturedUtc);
+        history.replaceState(null, "", url.toString());
 
-        let InitialsCapturedUTC = getParam(
-          ["InitialsCapturedUTC", "initialsCapturedUTC", "ProviderInitialsCapturedUTC"],
-          ""
-        );
-
-        // PROMPT if missing initials
-        if (!Initials) {
-          while (true) {
-            const entered = window.prompt("Enter your initials (2–4 letters):", "");
-            if (entered === null) break; // user cancelled; proceed without initials
-
-            const cleaned = entered.trim().toUpperCase();
-            if (/^[A-Z]{2,4}$/.test(cleaned)) {
-              Initials = cleaned;
-              InitialsCapturedUTC = nowUtcIso();
-              break;
-            }
-
-            alert("Please enter 2–4 letters only (example: AA).");
-          }
-        }
-
-        // If initials exist but captured time missing, stamp it
-        if (Initials && !InitialsCapturedUTC) {
-          InitialsCapturedUTC = nowUtcIso();
-        }
-
-        // WRITE initials into the current URL so PageUrl stored in SharePoint includes them
-        if (Initials) sp.set("Initials", Initials);
-        if (InitialsCapturedUTC) sp.set("InitialsCapturedUTC", InitialsCapturedUTC);
-        window.history.replaceState(null, "", url.toString());
-
-        // Payload for PRIMARY (minimal)
-        const legacyData = { Tagname, CurrentTime, Department, Location };
-
-        // Payload for EXPANDED (full)
-        const expandedData = {
+        const v3Payload = {
           Tagname,
           CurrentTime,
           Department,
           Location,
-          Initials,
-          InitialsCapturedUTC,
+          Initials: initials || "",
+          InitialsCapturedUTC: initialsCapturedUtc || "",
           PageUrl: url.toString(),
           Path: window.location.pathname,
           UserAgent: navigator.userAgent
         };
 
-        function post(url, data) {
-          return fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data),
-            keepalive: true
-          });
-        }
-
-        const posts = [
-          post(primaryFlowUrl, legacyData).catch(() => {}),
-          post(expandedFlowUrl, expandedData).catch(() => {})
-        ];
+        const legacyPayload = { Tagname, CurrentTime, Department, Location };
 
         const timeout = new Promise((resolve) => setTimeout(resolve, MAX_WAIT_MS));
 
-        Promise.race([Promise.allSettled(posts), timeout]).finally(() => {
+        try {
+          // Only v.3 first (prevents double SharePoint items)
+          await Promise.race([postJson(v3FlowUrl, v3Payload), timeout]);
+        } catch (e) {
+          // Fallback only if v.3 fails
+          try { await Promise.race([postJson(fallbackFlowUrl, legacyPayload), timeout]); } catch (e2) {}
+        } finally {
           window.location.replace(redirectUrl);
-        });
+        }
+      }
+
+      (function start() {
+        // Try to read initials from URL first (if already there)
+        let initials = normalizeInitials(getParam(
+          ["Initials", "initials", "ProviderInitials", "providerInitials"],
+          ""
+        ));
+
+        let initialsCapturedUtc = getParam(
+          ["InitialsCapturedUTC", "initialsCapturedUTC", "ProviderInitialsCapturedUTC"],
+          ""
+        );
+
+        if (initials && !initialsCapturedUtc) initialsCapturedUtc = nowUtcIso();
+
+        // If missing initials, show gate (reliable on phones)
+        if (!initials) {
+          const gate = document.getElementById("gate");
+          const input = document.getElementById("initialsInput");
+          const err = document.getElementById("err");
+          const continueBtn = document.getElementById("continueBtn");
+          const skipBtn = document.getElementById("skipBtn");
+
+          gate.style.display = "flex";
+          input.focus();
+
+          continueBtn.onclick = () => {
+            const picked = normalizeInitials(input.value);
+            if (!picked) {
+              err.textContent = "Please enter 2–4 letters only (example: AA).";
+              return;
+            }
+            gate.style.display = "none";
+            proceed(picked, nowUtcIso());
+          };
+
+          skipBtn.onclick = () => {
+            gate.style.display = "none";
+            proceed("", "");
+          };
+
+          input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") continueBtn.click();
+          });
+
+          return; // IMPORTANT: stop until user chooses
+        }
+
+        // Initials already present → proceed
+        proceed(initials, initialsCapturedUtc);
       })();
     </script>
-  </head>
-  <body>
-    Redirecting...
   </body>
 </html>
