@@ -2,124 +2,56 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <meta name="referrer" content="no-referrer-when-downgrade" />
     <title>Redirecting...</title>
-
     <script>
-      // =========================================================
-      // 1) CONFIG
-      // =========================================================
+      const redirectUrl = "https://caplanc.org/access-resources/safety-empowerment/domestic-violence-services/";
 
-      // Where the user ends up no matter what (keeps existing behavior)
-      const redirectUrl =
-        "https://caplanc.org/access-resources/safety-empowerment/domestic-violence-services/";
+      // NEW (primary) endpoint
+      const newFlowUrl = "https://default1155ce382a364ffaad4da283064efb.68.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/9bcd0e64bcfe47b182626f09806cb9b0/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=dsDZvg20sa-nyx0f571DfnXfEXlMkM6_he0cqU2aUCk";
 
-      // Power Automate HTTP trigger URL (use the FULL URL exactly as provided by Power Automate)
-      const flowUrl =
-        "https://38c0ffbc5b67e3c9bab1502225ae2b.04.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/b21b57c64bbf446289b1d2a5a9685771/triggers/manual/paths/invoke?api-version=1";
+      // New (Expanded) endpoint – valid until Nov 30, 2025
+      const oldFlowUrl = "https://38c0ffbc5b67e3c9bab1502225ae2b.04.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/b21b57c64bbf446289b1d2a5a9685771/triggers/manual/paths/invoke?api-version=1";
 
-      // =========================================================
-      // 2) HELPERS
-      // =========================================================
-      const urlParams = new URLSearchParams(window.location.search);
+      // Cutoff at 11:59:59 PM ET on Nov 30, 2025
+      const cutoff = new Date("2025-11-30T23:59:59-05:00");
 
-      // Pull a value from multiple possible query param names (backward compatible)
-      function getParam(keys, fallback = "") {
-        for (const k of keys) {
-          const v = urlParams.get(k);
-          if (v !== null && v !== "") return v;
-        }
-        return fallback;
-      }
-
-      function nowUtcIso() {
-        return new Date().toISOString();
-      }
-
-      async function postJson(url, data) {
-        // keepalive helps the request finish even if we redirect immediately
-        return fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-          keepalive: true
-        });
-      }
-
-      // =========================================================
-      // 3) MAIN: Read params → POST → Redirect
-      // =========================================================
       (async function () {
-        // Core fields (existing)
-        const Tagname = getParam(["Tagname", "tagname", "tag"], "");
-        const Department = getParam(["Department", "department", "dept"], "");
-        const Location = getParam(["Location", "location", "loc"], "");
-        const CurrentTime = getParam(
-          ["CurrentTime", "currentTime", "time"],
-          nowUtcIso()
-        );
+        const urlParams = new URLSearchParams(window.location.search);
 
-        // Expanded fields (safe additions — won’t break older flows)
-        // Supports your current naming: "Initials"
-        // Also supports older naming that might still be on some tags/links: "ProviderInitials"
-        const Initials = getParam(
-          ["Initials", "initials", "ProviderInitials", "providerInitials"],
-          ""
-        );
-
-        // Timestamp for when initials were captured (if not supplied, set to now)
-        const InitialsCapturedUTC = getParam(
-          ["InitialsCapturedUTC", "initialsCapturedUTC", "ProviderInitialsCapturedUTC"],
-          nowUtcIso()
-        );
-
-        // Inventory/bin compatibility (won’t hurt if unused)
-        const Bin = getParam(["bin", "Bin"], "");
-        const AssetId = getParam(["AssetId", "assetId", "assetID"], "");
-        const Item = getParam(["Item", "item", "AssetName", "assetName"], "");
-        const Action = getParam(["Action", "action"], "");
-
-        // Useful diagnostics (optional, but helps troubleshooting)
-        const PageUrl = window.location.href;
-        const Path = window.location.pathname;
-
-        const payload = {
-          // Existing fields
-          Tagname,
-          CurrentTime,
-          Department,
-          Location,
-
-          // Expanded fields
-          Initials,
-          InitialsCapturedUTC,
-
-          // Inventory/bin fields (optional)
-          Bin,
-          AssetId,
-          Item,
-          Action,
-
-          // Diagnostics
-          PageUrl,
-          Path,
-          UserAgent: navigator.userAgent
+        const data = {
+          Tagname: urlParams.get("Tagname") || "",
+          CurrentTime: urlParams.get("CurrentTime") || new Date().toISOString(),
+          Department: urlParams.get("Department") || "",
+          Location: urlParams.get("Location") || "",
         };
 
+        const post = (url) =>
+          fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data)
+          });
+
         try {
-          // Send to Power Automate
-          await postJson(flowUrl, payload);
+          // 1) Try NEW endpoint first
+          await post(newFlowUrl);
+
+          // 2) While before cutoff, also send to OLD (fire-and-forget)
+          if (new Date() <= cutoff) post(oldFlowUrl).catch(() => {});
         } catch (err) {
-          // Intentionally ignore errors — redirect must still happen
+          // If NEW failed and we're before cutoff, try OLD once
+          if (new Date() <= cutoff) {
+            try { await post(oldFlowUrl); } catch (e) { /* ignore */ }
+          }
         } finally {
-          // Redirect regardless of outcome (keeps existing behavior)
-          window.location.replace(redirectUrl);
+          // Redirect regardless of outcome
+          window.location.href = redirectUrl;
         }
       })();
     </script>
   </head>
-
   <body>
     Redirecting...
   </body>
 </html>
+
