@@ -1,19 +1,113 @@
-<!doctype html><meta charset="utf-8">
+<!doctype html>
+<meta charset="utf-8">
+<title>Redirecting...</title>
+
 <script>
-  // Power Apps PLAY base (your link, trimmed to tenantId only)
-  const base = "https://apps.powerapps.com/play/e/default-1155ce38-2a36-4ffa-ad4d-a283064efb68/a/16521173-a066-4b39-ba98-c528d19a6b6b?tenantId=1155ce38-2a36-4ffa-ad4d-a283064efb68";
+  // =========================================================
+  // OUTREACH INVENTORY BIN REDIRECT + SCAN LOG POST
+  // =========================================================
+
+  // Power Apps PLAY base (unchanged)
+  const base =
+    "https://apps.powerapps.com/play/e/default-1155ce38-2a36-4ffa-ad4d-a283064efb68/a/16521173-a066-4b39-ba98-c528d19a6b6b?tenantId=1155ce38-2a36-4ffa-ad4d-a283064efb68";
+
+  // NEW Power Automate endpoint (use EXACTLY what Power Automate gives you)
+  const flowUrl =
+    "https://38c0ffbc5b67e3c9bab1502225ae2b.04.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/b21b57c64bbf446289b1d2a5a9685771/triggers/manual/paths/invoke?api-version=1";
 
   const p = new URLSearchParams(location.search);
+
+  // Keep existing bin/c behavior
   const bin = (p.get("bin") || "").trim();
   const c   = (p.get("c")   || "").trim();
 
-  const dest = c
-    ? `${base}&c=${encodeURIComponent(c)}&m=edit`
-    : `${base}&bin=${encodeURIComponent(bin)}&m=edit`;
+  // Backward-compatible getter for expanded fields
+  function getParam(keys, fallback = "") {
+    for (const k of keys) {
+      const v = p.get(k);
+      if (v !== null && v !== "") return v;
+    }
+    return fallback;
+  }
 
+  function nowUtcIso() {
+    return new Date().toISOString();
+  }
+
+  // Expanded scan fields (safe to be empty)
+  const Tagname = getParam(["Tagname", "tagname", "tag"], "");
+  const Department = getParam(["Department", "department", "dept"], "");
+  const Location = getParam(["Location", "location", "loc"], "");
+  const CurrentTime = getParam(["CurrentTime", "currentTime", "time"], nowUtcIso());
+
+  // Your renamed fields (Initials / InitialsCapturedUTC), but still accepts legacy names
+  const Initials = getParam(
+    ["Initials", "initials", "ProviderInitials", "providerInitials"],
+    ""
+  );
+  const InitialsCapturedUTC = getParam(
+    ["InitialsCapturedUTC", "initialsCapturedUTC", "ProviderInitialsCapturedUTC"],
+    nowUtcIso()
+  );
+
+  // Build Power Apps destination EXACTLY like your original logic
+  let dest = `${base}&m=edit`;
+  if (c) {
+    dest += `&c=${encodeURIComponent(c)}`;
+  } else {
+    dest += `&bin=${encodeURIComponent(bin)}`;
+  }
+
+  // OPTIONAL: pass through expanded params to Power Apps too (won't break the app; useful if you ever read Param() values)
+  function addToDest(key, val) {
+    if (val) dest += `&${encodeURIComponent(key)}=${encodeURIComponent(val)}`;
+  }
+  addToDest("Tagname", Tagname);
+  addToDest("Department", Department);
+  addToDest("Location", Location);
+  addToDest("CurrentTime", CurrentTime);
+  addToDest("Initials", Initials);
+  addToDest("InitialsCapturedUTC", InitialsCapturedUTC);
+
+  // If missing both bin and c, keep original error behavior (no redirect)
   if (!bin && !c) {
     document.write("Missing bin or code. Use ?bin=CD1 or ?c=ABC123");
   } else {
-    location.replace(dest);
+    // Payload to your flow (does not block redirect)
+    const payload = {
+      // Inventory identifiers
+      Bin: bin,
+      Code: c,
+
+      // Scan fields
+      Tagname,
+      CurrentTime,
+      Department,
+      Location,
+      Initials,
+      InitialsCapturedUTC,
+
+      // Diagnostics
+      PageUrl: location.href,
+      Path: location.pathname,
+      UserAgent: navigator.userAgent
+    };
+
+    try {
+      // Fire-and-forget; keepalive helps finish even while redirecting
+      fetch(flowUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        keepalive: true
+      }).catch(() => {});
+    } catch (e) {
+      // Ignore and continue to redirect
+    }
+
+    // Tiny delay so the POST has a head start; redirect always happens
+    setTimeout(() => location.replace(dest), 150);
   }
 </script>
+
+Redirecting...
