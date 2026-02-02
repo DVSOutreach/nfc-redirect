@@ -20,18 +20,19 @@
       const MAX_WAIT_MS = 2000;
 
       (function () {
-        const urlParams = new URLSearchParams(window.location.search);
-
-        function getParam(keys, fallback = "") {
-          for (const k of keys) {
-            const v = urlParams.get(k);
-            if (v !== null && v !== "") return v;
-          }
-          return fallback;
-        }
+        const url = new URL(window.location.href);
+        const sp = url.searchParams;
 
         function nowUtcIso() {
           return new Date().toISOString();
+        }
+
+        function getParam(keys, fallback = "") {
+          for (const k of keys) {
+            const v = sp.get(k);
+            if (v !== null && v !== "") return v;
+          }
+          return fallback;
         }
 
         // Core fields (legacy)
@@ -40,16 +41,43 @@
         const Department = getParam(["Department", "department", "dept"], "");
         const Location = getParam(["Location", "location", "loc"], "");
 
-        // Expanded fields
-        const Initials = getParam(
+        // Initials (read from URL first)
+        let Initials = getParam(
           ["Initials", "initials", "ProviderInitials", "providerInitials"],
           ""
         );
 
-        const InitialsCapturedUTC = getParam(
+        let InitialsCapturedUTC = getParam(
           ["InitialsCapturedUTC", "initialsCapturedUTC", "ProviderInitialsCapturedUTC"],
-          nowUtcIso()
+          ""
         );
+
+        // PROMPT if missing initials
+        if (!Initials) {
+          while (true) {
+            const entered = window.prompt("Enter your initials (2–4 letters):", "");
+            if (entered === null) break; // user cancelled; proceed without initials
+
+            const cleaned = entered.trim().toUpperCase();
+            if (/^[A-Z]{2,4}$/.test(cleaned)) {
+              Initials = cleaned;
+              InitialsCapturedUTC = nowUtcIso();
+              break;
+            }
+
+            alert("Please enter 2–4 letters only (example: AA).");
+          }
+        }
+
+        // If initials exist but captured time missing, stamp it
+        if (Initials && !InitialsCapturedUTC) {
+          InitialsCapturedUTC = nowUtcIso();
+        }
+
+        // WRITE initials into the current URL so PageUrl stored in SharePoint includes them
+        if (Initials) sp.set("Initials", Initials);
+        if (InitialsCapturedUTC) sp.set("InitialsCapturedUTC", InitialsCapturedUTC);
+        window.history.replaceState(null, "", url.toString());
 
         // Payload for PRIMARY (minimal)
         const legacyData = { Tagname, CurrentTime, Department, Location };
@@ -62,7 +90,7 @@
           Location,
           Initials,
           InitialsCapturedUTC,
-          PageUrl: window.location.href,
+          PageUrl: url.toString(),
           Path: window.location.pathname,
           UserAgent: navigator.userAgent
         };
@@ -92,5 +120,4 @@
   <body>
     Redirecting...
   </body>
-</html>
 </html>
