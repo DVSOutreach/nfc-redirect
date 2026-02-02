@@ -16,6 +16,9 @@
       const expandedFlowUrl =
         "https://default1155ce382a364ffaad4da283064efb.68.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/89285acbed1a4b878841eb1c13414230/triggers/manual/paths/invoke?api-version=1";
 
+      // Give the POSTs time to finish (preflight alone is ~235ms in your screenshot)
+      const MAX_WAIT_MS = 2000;
+
       (function () {
         const urlParams = new URLSearchParams(window.location.search);
 
@@ -78,12 +81,18 @@
           });
         }
 
-        // Fire-and-forget to BOTH endpoints; redirect regardless
-        try { post(primaryFlowUrl, legacyData).catch(() => {}); } catch (e) {}
-        try { post(expandedFlowUrl, expandedData).catch(() => {}); } catch (e) {}
+        // Kick off both POSTs
+        const posts = [
+          post(primaryFlowUrl, legacyData).catch(() => {}),
+          post(expandedFlowUrl, expandedData).catch(() => {})
+        ];
 
-        // Redirect (small delay so POST has a head start)
-        setTimeout(() => window.location.replace(redirectUrl), 150);
+        // Wait until both finish OR until MAX_WAIT_MS passes, then redirect
+        const timeout = new Promise((resolve) => setTimeout(resolve, MAX_WAIT_MS));
+
+        Promise.race([Promise.allSettled(posts), timeout]).finally(() => {
+          window.location.replace(redirectUrl);
+        });
       })();
     </script>
   </head>
