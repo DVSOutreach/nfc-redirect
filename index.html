@@ -12,11 +12,11 @@
       const primaryFlowUrl =
         "https://default1155ce382a364ffaad4da283064efb.68.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/9bcd0e64bcfe47b182626f09806cb9b0/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=dsDZvg20sa-nyx0f571DfnXfEXlMkM6_he0cqU2aUCk";
 
-      // EXPANDED endpoint (CAP v.3)
+      // EXPANDED endpoint (CAP v.3 - SIGNED "anyone can trigger" URL)
       const expandedFlowUrl =
-        "https://default1155ce382a364ffaad4da283064efb.68.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/89285acbed1a4b878841eb1c13414230/triggers/manual/paths/invoke?api-version=1";
+        "https://default1155ce382a364ffaad4da283064efb.68.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/89285acbed1a4b878841eb1c13414230/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=BrJvpHWGnE3h3_nLagPxuxcI4uKCL_Q_VkRaI9XaAIE";
 
-      // Give the POSTs time to finish (preflight alone is ~235ms in your screenshot)
+      // Give the POSTs time to finish
       const MAX_WAIT_MS = 2000;
 
       (function () {
@@ -40,7 +40,7 @@
         const Department = getParam(["Department", "department", "dept"], "");
         const Location = getParam(["Location", "location", "loc"], "");
 
-        // Expanded fields (new naming + backwards compatibility)
+        // Expanded fields
         const Initials = getParam(
           ["Initials", "initials", "ProviderInitials", "providerInitials"],
           ""
@@ -51,15 +51,10 @@
           nowUtcIso()
         );
 
-        // Payload for PRIMARY (keep it minimal so older flow never chokes)
-        const legacyData = {
-          Tagname,
-          CurrentTime,
-          Department,
-          Location
-        };
+        // Payload for PRIMARY (minimal)
+        const legacyData = { Tagname, CurrentTime, Department, Location };
 
-        // Payload for EXPANDED (full payload)
+        // Payload for EXPANDED (full)
         const expandedData = {
           Tagname,
           CurrentTime,
@@ -81,13 +76,11 @@
           });
         }
 
-        // Kick off both POSTs
         const posts = [
           post(primaryFlowUrl, legacyData).catch(() => {}),
           post(expandedFlowUrl, expandedData).catch(() => {})
         ];
 
-        // Wait until both finish OR until MAX_WAIT_MS passes, then redirect
         const timeout = new Promise((resolve) => setTimeout(resolve, MAX_WAIT_MS));
 
         Promise.race([Promise.allSettled(posts), timeout]).finally(() => {
@@ -99,4 +92,5 @@
   <body>
     Redirecting...
   </body>
+</html>
 </html>
