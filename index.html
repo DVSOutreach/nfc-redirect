@@ -4,54 +4,49 @@
     <meta charset="UTF-8" />
     <title>Redirecting...</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 0; }
-      #status { padding: 18px; }
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        background: #f7f7f7;
+        color: #222;
+      }
 
-      #gate {
-        position: fixed; inset: 0; display: none;
-        background: rgba(0,0,0,0.65);
-        align-items: center; justify-content: center;
-        padding: 16px;
+      #status {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        text-align: center;
       }
+
       #card {
-        background: #fff; border-radius: 12px; padding: 20px; max-width: 420px; width: 100%;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        background: #fff;
+        border-radius: 12px;
+        padding: 24px;
+        max-width: 420px;
+        width: 100%;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
       }
-      #card h2 { margin: 0 0 10px 0; font-size: 18px; }
-      #card p { margin: 0 0 12px 0; color: #333; }
-      #initialsInput {
-        width: 100%; padding: 12px; font-size: 18px;
-        border: 1px solid #ccc; border-radius: 8px;
-        text-transform: uppercase;
+
+      #card h2 {
+        margin: 0 0 10px 0;
+        font-size: 20px;
       }
-      #btnRow { margin-top: 12px; display: flex; gap: 10px; }
-      button {
-        padding: 10px 14px; border-radius: 8px; border: 0; cursor: pointer;
-        font-size: 14px;
+
+      #card p {
+        margin: 0;
+        color: #444;
+        line-height: 1.4;
       }
-      #continueBtn { background: #1a73e8; color: #fff; flex: 1; }
-      #skipBtn { background: #e0e0e0; color: #111; }
-      #err { margin-top: 10px; color: #b00020; min-height: 18px; }
     </style>
   </head>
 
   <body>
-    <div id="status">Redirecting...</div>
-
-    <!-- Initials Gate (on-page prompt) -->
-    <div id="gate">
+    <div id="status">
       <div id="card">
-        <h2>Enter your initials</h2>
-        <p>Type 2–4 letters (example: AA). This will be recorded with the scan.</p>
-
-        <input id="initialsInput" maxlength="4" autocomplete="off" inputmode="text" />
-
-        <div id="btnRow">
-          <button id="continueBtn">Continue</button>
-          <button id="skipBtn" title="Continue without initials">Skip</button>
-        </div>
-
-        <div id="err"></div>
+        <h2>Connecting you to Domestic Violence Services...</h2>
+        <p>Please wait while we redirect you.</p>
       </div>
     </div>
 
@@ -78,10 +73,13 @@
       // =========================================================
       // HELPERS
       // =========================================================
+
       const url = new URL(window.location.href);
       const sp = url.searchParams;
 
-      function nowUtcIso() { return new Date().toISOString(); }
+      function nowUtcIso() {
+        return new Date().toISOString();
+      }
 
       function getParam(keys, fallback = "") {
         for (const k of keys) {
@@ -89,11 +87,6 @@
           if (v !== null && v !== "") return v;
         }
         return fallback;
-      }
-
-      function normalizeInitials(raw) {
-        const cleaned = (raw || "").trim().toUpperCase();
-        return /^[A-Z]{2,4}$/.test(cleaned) ? cleaned : "";
       }
 
       async function postJson(endpointUrl, data) {
@@ -108,95 +101,56 @@
       // =========================================================
       // MAIN
       // =========================================================
-      async function proceed(initials, initialsCapturedUtc) {
+
+      async function proceed() {
         // Core fields
         const Tagname = getParam(["Tagname", "tagname", "tag"], "");
         const CurrentTime = getParam(["CurrentTime", "currentTime", "time"], nowUtcIso());
         const Department = getParam(["Department", "department", "dept"], "");
         const Location = getParam(["Location", "location", "loc"], "");
 
-        // Write initials into URL so PageUrl stored in SharePoint includes them
-        if (initials) sp.set("Initials", initials);
-        if (initialsCapturedUtc) sp.set("InitialsCapturedUTC", initialsCapturedUtc);
-        history.replaceState(null, "", url.toString());
+        // Initials functionality removed.
+        // These are intentionally left blank so the Power Automate flow
+        // and SharePoint columns can remain unchanged.
+        const Initials = "";
+        const InitialsCapturedUTC = "";
 
         const v3Payload = {
           Tagname,
           CurrentTime,
           Department,
           Location,
-          Initials: initials || "",
-          InitialsCapturedUTC: initialsCapturedUtc || "",
+          Initials,
+          InitialsCapturedUTC,
           PageUrl: url.toString(),
           Path: window.location.pathname,
           UserAgent: navigator.userAgent
         };
 
-        const legacyPayload = { Tagname, CurrentTime, Department, Location };
+        const legacyPayload = {
+          Tagname,
+          CurrentTime,
+          Department,
+          Location
+        };
 
         const timeout = new Promise((resolve) => setTimeout(resolve, MAX_WAIT_MS));
 
         try {
-          // Only v.3 first (prevents double SharePoint items)
+          // Only v.3 first to prevent duplicate SharePoint items
           await Promise.race([postJson(v3FlowUrl, v3Payload), timeout]);
         } catch (e) {
           // Fallback only if v.3 fails
-          try { await Promise.race([postJson(fallbackFlowUrl, legacyPayload), timeout]); } catch (e2) {}
+          try {
+            await Promise.race([postJson(fallbackFlowUrl, legacyPayload), timeout]);
+          } catch (e2) {}
         } finally {
           window.location.replace(redirectUrl);
         }
       }
 
-      (function start() {
-        // Try to read initials from URL first (if already there)
-        let initials = normalizeInitials(getParam(
-          ["Initials", "initials", "ProviderInitials", "providerInitials"],
-          ""
-        ));
-
-        let initialsCapturedUtc = getParam(
-          ["InitialsCapturedUTC", "initialsCapturedUTC", "ProviderInitialsCapturedUTC"],
-          ""
-        );
-
-        if (initials && !initialsCapturedUtc) initialsCapturedUtc = nowUtcIso();
-
-        // If missing initials, show gate (reliable on phones)
-        if (!initials) {
-          const gate = document.getElementById("gate");
-          const input = document.getElementById("initialsInput");
-          const err = document.getElementById("err");
-          const continueBtn = document.getElementById("continueBtn");
-          const skipBtn = document.getElementById("skipBtn");
-
-          gate.style.display = "flex";
-          input.focus();
-
-          continueBtn.onclick = () => {
-            const picked = normalizeInitials(input.value);
-            if (!picked) {
-              err.textContent = "Please enter 2–4 letters only (example: AA).";
-              return;
-            }
-            gate.style.display = "none";
-            proceed(picked, nowUtcIso());
-          };
-
-          skipBtn.onclick = () => {
-            gate.style.display = "none";
-            proceed("", "");
-          };
-
-          input.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") continueBtn.click();
-          });
-
-          return; // IMPORTANT: stop until user chooses
-        }
-
-        // Initials already present → proceed
-        proceed(initials, initialsCapturedUtc);
-      })();
+      // Start automatically when the page loads.
+      proceed();
     </script>
   </body>
 </html>
