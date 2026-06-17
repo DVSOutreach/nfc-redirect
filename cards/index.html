@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DVS Contact Card</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f4f4f4;
+      color: #222;
+    }
+
+    .wrap {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0 0 8px 0;
+      font-size: 26px;
+    }
+
+    .title {
+      font-size: 17px;
+      color: #555;
+      margin-bottom: 6px;
+    }
+
+    .org {
+      font-size: 15px;
+      color: #666;
+      margin-bottom: 24px;
+      line-height: 1.4;
+    }
+
+    .button {
+      display: block;
+      background: #222;
+      color: white;
+      text-decoration: none;
+      padding: 14px;
+      border-radius: 10px;
+      margin: 12px 0;
+      font-size: 16px;
+    }
+
+    .secondary {
+      background: #666;
+    }
+
+    .note {
+      font-size: 13px;
+      color: #666;
+      margin-top: 20px;
+      line-height: 1.4;
+    }
+
+    .error {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div id="content"></div>
+  </div>
+
+  <script>
+    /*
+      Coworker NFC business card directory.
+
+      Each NFC card should point to one of these links:
+
+      Andrew:
+      https://dvsoutreach.github.io/nfc-redirect/cards/?id=andrew
+
+      Jada:
+      https://dvsoutreach.github.io/nfc-redirect/cards/?id=jada
+
+      Charli:
+      https://dvsoutreach.github.io/nfc-redirect/cards/?id=charli
+    */
+
+    const people = {
+      andrew: {
+        name: "Andrew Acebo",
+        title: "Program Outcome Specialist",
+        org: "Domestic Violence Services of Lancaster County",
+        email: "aacebo@caplanc.org",
+        website: "https://caplanc.org/access-resources/safety-empowerment/domestic-violence-services/"
+      },
+
+      jada: {
+        name: "Jada Morales",
+        title: "Community Educator",
+        org: "Domestic Violence Services of Lancaster County",
+        email: "jmorales@caplanc.org",
+        website: "https://caplanc.org/access-resources/safety-empowerment/domestic-violence-services/"
+      },
+
+      charli: {
+        name: "Charli Smoker",
+        title: "Medical Systems Advocate",
+        org: "Domestic Violence Services of Lancaster County",
+        email: "csmoker@caplanc.org",
+        website: "https://caplanc.org/access-resources/safety-empowerment/domestic-violence-services/"
+      }
+    };
+
+    const params = new URLSearchParams(window.location.search);
+    const id = (params.get("id") || "").toLowerCase().trim();
+    const person = people[id];
+    const content = document.getElementById("content");
+
+    function makeVCard(person) {
+      return [
+        "BEGIN:VCARD",
+        "VERSION:3.0",
+        `FN:${person.name}`,
+        `ORG:${person.org}`,
+        `TITLE:${person.title}`,
+        `EMAIL;TYPE=WORK:${person.email}`,
+        `URL:${person.website}`,
+        "END:VCARD"
+      ].join("\n");
+    }
+
+    if (!person) {
+      content.innerHTML = `
+        <div class="error">
+          <h1>Contact Not Found</h1>
+          <p>This NFC card link is missing or incorrect.</p>
+          <p class="note">
+            Check the ID at the end of the link.
+            <br><br>
+            Examples:
+            <br>
+            <strong>?id=andrew</strong>
+            <br>
+            <strong>?id=jada</strong>
+            <br>
+            <strong>?id=charli</strong>
+          </p>
+        </div>
+      `;
+    } else {
+      const vcard = makeVCard(person);
+      const vcardUrl = "data:text/vcard;charset=utf-8," + encodeURIComponent(vcard);
+      const fileName = person.name.replaceAll(" ", "_") + ".vcf";
+
+      content.innerHTML = `
+        <div class="card">
+          <h1>${person.name}</h1>
+          <div class="title">${person.title}</div>
+          <div class="org">${person.org}</div>
+
+          <a class="button" href="${vcardUrl}" download="${fileName}">
+            Save Contact
+          </a>
+
+          <a class="button secondary" href="mailto:${person.email}">
+            Email
+          </a>
+
+          <a class="button secondary" href="${person.website}">
+            Visit DVS Website
+          </a>
+
+          <p class="note">
+            Tap “Save Contact” to add this person to your phone.
+          </p>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
