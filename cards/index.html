@@ -95,6 +95,9 @@
 
       Charli:
       https://dvsoutreach.github.io/nfc-redirect/cards/?id=charli
+
+      Fai:
+      https://dvsoutreach.github.io/nfc-redirect/cards/?id=fai
     */
 
     const people = {
@@ -103,6 +106,7 @@
         title: "Program Outcome Specialist",
         org: "Domestic Violence Services of Lancaster County",
         email: "aacebo@caplanc.org",
+        phone: "",
         website: "https://caplanc.org/access-resources/safety-empowerment/domestic-violence-services/"
       },
 
@@ -111,6 +115,7 @@
         title: "Community Educator",
         org: "Domestic Violence Services of Lancaster County",
         email: "jmorales@caplanc.org",
+        phone: "",
         website: "https://caplanc.org/access-resources/safety-empowerment/domestic-violence-services/"
       },
 
@@ -119,6 +124,16 @@
         title: "Medical Systems Advocate",
         org: "Domestic Violence Services of Lancaster County",
         email: "csmoker@caplanc.org",
+        phone: "",
+        website: "https://caplanc.org/access-resources/safety-empowerment/domestic-violence-services/"
+      },
+
+      fai: {
+        name: "Fai Hammond",
+        title: "Community Outreach Coordinator",
+        org: "Domestic Violence Services of Lancaster County",
+        email: "fhammond@caplanc.org",
+        phone: "717-299-7301",
         website: "https://caplanc.org/access-resources/safety-empowerment/domestic-violence-services/"
       }
     };
@@ -129,16 +144,25 @@
     const content = document.getElementById("content");
 
     function makeVCard(person) {
-      return [
+      const vcardLines = [
         "BEGIN:VCARD",
         "VERSION:3.0",
         `FN:${person.name}`,
         `ORG:${person.org}`,
         `TITLE:${person.title}`,
-        `EMAIL;TYPE=WORK:${person.email}`,
+        `EMAIL;TYPE=WORK:${person.email}`
+      ];
+
+      if (person.phone && person.phone.trim() !== "") {
+        vcardLines.push(`TEL;TYPE=WORK,VOICE:${person.phone}`);
+      }
+
+      vcardLines.push(
         `URL:${person.website}`,
         "END:VCARD"
-      ].join("\n");
+      );
+
+      return vcardLines.join("\n");
     }
 
     if (!person) {
@@ -156,13 +180,15 @@
             <strong>?id=jada</strong>
             <br>
             <strong>?id=charli</strong>
+            <br>
+            <strong>?id=fai</strong>
           </p>
         </div>
       `;
     } else {
       const vcard = makeVCard(person);
       const vcardUrl = "data:text/vcard;charset=utf-8," + encodeURIComponent(vcard);
-      const fileName = person.name.replaceAll(" ", "_") + ".vcf";
+      const fileName = person.name.replace(/\s+/g, "_") + ".vcf";
 
       content.innerHTML = `
         <div class="card">
@@ -177,6 +203,14 @@
           <a class="button secondary" href="mailto:${person.email}">
             Email
           </a>
+
+          ${
+            person.phone && person.phone.trim() !== ""
+              ? `<a class="button secondary" href="tel:${person.phone.replace(/[^0-9]/g, "")}">
+                  Call
+                </a>`
+              : ""
+          }
 
           <a class="button secondary" href="${person.website}">
             Visit DVS Website
